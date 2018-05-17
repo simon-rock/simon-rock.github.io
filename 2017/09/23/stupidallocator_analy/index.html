@@ -68,7 +68,7 @@
 
 
 
-  <meta name="keywords" content="tag1," />
+  <meta name="keywords" content="ceph,bluestore,allocator," />
 
 
 
@@ -79,18 +79,18 @@
 
 
 
-<meta name="description" content="Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub. Quick">
-<meta name="keywords" content="tag1">
+<meta name="description" content="Allocator-StupidAllocator 简介Allocator 主要是用来管理bluestore中空闲空间，处理空闲空间的分配和回收已经分配的空间信息，会以将元数据信息固化在磁盘中，这里bluestore和bluefs不同  bluestore 记录在rocksdb bluefs 是把元数据以日志形式记录在开头主要的管理方式有两种 StupidAllocator  基于区间树的实现 B">
+<meta name="keywords" content="ceph,bluestore,allocator">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Hello World2">
-<meta property="og:url" content="http://yoursite.com/2016/08/11/hello-world2/index.html">
-<meta property="og:site_name" content="fortech">
-<meta property="og:description" content="Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub. Quick">
+<meta property="og:title" content="ceph源码分析:bluestore - StupidAllocator">
+<meta property="og:url" content="http://yoursite.com/2017/09/23/stupidallocator_analy/index.html">
+<meta property="og:site_name" content="simon&#39;s blog">
+<meta property="og:description" content="Allocator-StupidAllocator 简介Allocator 主要是用来管理bluestore中空闲空间，处理空闲空间的分配和回收已经分配的空间信息，会以将元数据信息固化在磁盘中，这里bluestore和bluefs不同  bluestore 记录在rocksdb bluefs 是把元数据以日志形式记录在开头主要的管理方式有两种 StupidAllocator  基于区间树的实现 B">
 <meta property="og:locale" content="en">
-<meta property="og:updated_time" content="2018-02-26T13:29:47.000Z">
+<meta property="og:updated_time" content="2018-05-17T14:34:24.000Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Hello World2">
-<meta name="twitter:description" content="Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub. Quick">
+<meta name="twitter:title" content="ceph源码分析:bluestore - StupidAllocator">
+<meta name="twitter:description" content="Allocator-StupidAllocator 简介Allocator 主要是用来管理bluestore中空闲空间，处理空闲空间的分配和回收已经分配的空间信息，会以将元数据信息固化在磁盘中，这里bluestore和bluefs不同  bluestore 记录在rocksdb bluefs 是把元数据以日志形式记录在开头主要的管理方式有两种 StupidAllocator  基于区间树的实现 B">
 
 
 
@@ -120,13 +120,13 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2016/08/11/hello-world2/"/>
+  <link rel="canonical" href="http://yoursite.com/2017/09/23/stupidallocator_analy/"/>
 
 
 
 
 
-  <title>Hello World2 | fortech</title>
+  <title>ceph源码分析:bluestore - StupidAllocator | simon's blog</title>
   
 
 
@@ -156,7 +156,7 @@
     <div class="custom-logo-site-title">
       <a href="/"  class="brand" rel="start">
         <span class="logo-line-before"><i></i></span>
-        <span class="site-title">fortech</span>
+        <span class="site-title">simon's blog</span>
         <span class="logo-line-after"><i></i></span>
       </a>
     </div>
@@ -286,12 +286,12 @@
   
   
 
-  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  <article class="post post-type-tags" itemscope itemtype="http://schema.org/Article">
   
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2016/08/11/hello-world2/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/09/23/stupidallocator_analy/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="simon">
@@ -300,7 +300,7 @@
     </span>
 
     <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="fortech">
+      <meta itemprop="name" content="simon's blog">
     </span>
 
     
@@ -308,7 +308,7 @@
 
         
         
-          <h1 class="post-title" itemprop="name headline">Hello World2</h1>
+          <h1 class="post-title" itemprop="name headline">ceph源码分析:bluestore - StupidAllocator</h1>
         
 
         <div class="post-meta">
@@ -320,8 +320,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2016-08-11T17:31:17+08:00">
-                2016-08-11
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-09-23T17:44:00+08:00">
+                2017-09-23
               </time>
             
 
@@ -343,8 +343,8 @@
               
               
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/life2/" itemprop="url" rel="index">
-                    <span itemprop="name">life2</span>
+                  <a href="/categories/storage/" itemprop="url" rel="index">
+                    <span itemprop="name">storage</span>
                   </a>
                 </span>
 
@@ -361,6 +361,11 @@
           
           
 
+          
+            <span class="post-meta-divider">|</span>
+            <span class="page-pv"><i class="fa fa-file-o"></i>
+            <span class="busuanzi-value" id="busuanzi_value_page_pv" ></span>
+            </span>
           
 
           
@@ -380,15 +385,18 @@
       
 
       
-        <p>Welcome to <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a>! This is your very first post. Check <a href="https://hexo.io/docs/" target="_blank" rel="noopener">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a href="https://hexo.io/docs/troubleshooting.html" target="_blank" rel="noopener">troubleshooting</a> or you can ask me on <a href="https://github.com/hexojs/hexo/issues" target="_blank" rel="noopener">GitHub</a>.</p>
-<h2 id="Quick-Start"><a href="#Quick-Start" class="headerlink" title="Quick Start"></a>Quick Start</h2><h3 id="Create-a-new-post"><a href="#Create-a-new-post" class="headerlink" title="Create a new post"></a>Create a new post</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo new <span class="string">"My New Post w2"</span></span><br></pre></td></tr></table></figure>
-<p>More info: <a href="https://hexo.io/docs/writing.html" target="_blank" rel="noopener">Writing</a></p>
-<h3 id="Run-server"><a href="#Run-server" class="headerlink" title="Run server"></a>Run server</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo server</span><br></pre></td></tr></table></figure>
-<p>More info: <a href="https://hexo.io/docs/server.html" target="_blank" rel="noopener">Server</a></p>
-<h3 id="Generate-static-files"><a href="#Generate-static-files" class="headerlink" title="Generate static files"></a>Generate static files</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo generate</span><br></pre></td></tr></table></figure>
-<p>More info: <a href="https://hexo.io/docs/generating.html" target="_blank" rel="noopener">Generating</a></p>
-<h3 id="Deploy-to-remote-sites"><a href="#Deploy-to-remote-sites" class="headerlink" title="Deploy to remote sites"></a>Deploy to remote sites</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo deploy</span><br></pre></td></tr></table></figure>
-<p>More info: <a href="https://hexo.io/docs/deployment.html" target="_blank" rel="noopener">Deployment</a></p>
+        <h2 id="Allocator-StupidAllocator-简介"><a href="#Allocator-StupidAllocator-简介" class="headerlink" title="Allocator-StupidAllocator 简介"></a>Allocator-StupidAllocator 简介</h2><p>Allocator 主要是用来管理bluestore中空闲空间，处理空闲空间的分配和回收<br>已经分配的空间信息，会以将元数据信息固化在磁盘中，这里bluestore和bluefs不同</p>
+<ul>
+<li>bluestore 记录在rocksdb</li>
+<li>bluefs 是把元数据以日志形式记录在开头<br>主要的管理方式有两种</li>
+<li>StupidAllocator  基于区间树的实现</li>
+<li>BitMapAllocator  基于bitmap<h2 id="StupidAllocator-分析"><a href="#StupidAllocator-分析" class="headerlink" title="StupidAllocator 分析"></a>StupidAllocator 分析</h2>StupidAllocator 不需要设备信息来初始化，后面添加freelist  ， 实现依赖btree_interval_set，此处指分区StupidAllocator</li>
+<li>默认有10个btree_interval_set，分配和释放调动allocate和release</li>
+<li>分配和归还时会根据归还的空间长度计算bin值来决定操作哪一个区间树， 总体是小空间操作0号，长度越大操作树的编号越大<h2 id="主要函数"><a href="#主要函数" class="headerlink" title="主要函数"></a>主要函数</h2></li>
+<li>allocate : want_size (期望大小) alloc_unit (对其大小单位) max_alloc_size (最大连续空间，大于此空间会返回列表) hint (对地址的要求，最好大于此地址) extents (返回)<br>如果want_size &gt; max_alloc_size 会返回几个地址段可以非；连续<br>alloc_unit 对应 cct-&gt;_conf-&gt;bluefs_alloc_size<br>allocate_int want_size(需要空间) alloc_unit(空间单位会和其对齐) hint(空间的下边缘，获得的空间互大于这个地址) offset(返回结果地址) length(返回地址长度)<br>wantsize 和alloc_unit 对齐后计算bin值决定选择哪个区间树（这种策略决定了bin越大的区间树，连续空间越大）<br>1 在&gt;=bin值的free中查找 大于hint的地址区间，看是否足够空闲空间<br>2 在&gt;=bin值的free中查找, 0~hint 的区间是否足够空闲空间<br>3 在&lt;bin值的free中查找 大于hint的地址区间，看是否足够空闲空间<br>4 在&lt;bin值的free中查找, 0~hint 的区间是否足够空闲空间<br>总结：后面的区间会比较倾向于处理大的连续空间放到， 前面的区间倾向处理小额的空间分配和归还，分配和归还都是如此</li>
+<li>release<br>归还释放的空间，更新空闲的总空间<br>_insert_free<br>将空间回收后可能会合并成新的区间， 此时需要在把这个区间放到合适bin的freelist中，保证了bin值小的区间连续段也比较小</li>
+<li>init_rm_free 根据log 重整空闲空间區間樹，在bluefs重新mount，replay原数据日志时会使用</li>
+</ul>
 
       
     </div>
@@ -406,7 +414,11 @@
       
         <div class="post-tags">
           
-            <a href="/tags/tag1/" rel="tag"># tag1</a>
+            <a href="/tags/ceph/" rel="tag"># ceph</a>
+          
+            <a href="/tags/bluestore/" rel="tag"># bluestore</a>
+          
+            <a href="/tags/allocator/" rel="tag"># allocator</a>
           
         </div>
       
@@ -419,8 +431,8 @@
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
             
-              <a href="/2016/08/11/hello-world3/" rel="next" title="Hello World3">
-                <i class="fa fa-chevron-left"></i> Hello World3
+              <a href="/2017/09/02/bluefs_analy/" rel="next" title="ceph源码分析:bluestore - bluefs">
+                <i class="fa fa-chevron-left"></i> ceph源码分析:bluestore - bluefs
               </a>
             
           </div>
@@ -429,8 +441,8 @@
 
           <div class="post-nav-prev post-nav-item">
             
-              <a href="/2017/08/11/build_blog_with_hexo/" rel="prev" title="基于hexo+github搭建个人blog">
-                基于hexo+github搭建个人blog <i class="fa fa-chevron-right"></i>
+              <a href="/2017/10/04/ceph_lock_pg/" rel="prev" title="ceph源码分析:ceph 读写流程中的锁 - pg lock">
+                ceph源码分析:ceph 读写流程中的锁 - pg lock <i class="fa fa-chevron-right"></i>
               </a>
             
           </div>
@@ -506,7 +518,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">3</span>
+                  <span class="site-state-item-count">6</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -517,7 +529,7 @@
               
               <div class="site-state-item site-state-categories">
                 <a href="/categories/index.html">
-                  <span class="site-state-item-count">3</span>
+                  <span class="site-state-item-count">2</span>
                   <span class="site-state-item-name">categories</span>
                 </a>
               </div>
@@ -528,7 +540,7 @@
               
               <div class="site-state-item site-state-tags">
                 <a href="/tags/index.html">
-                  <span class="site-state-item-count">3</span>
+                  <span class="site-state-item-count">8</span>
                   <span class="site-state-item-name">tags</span>
                 </a>
               </div>
@@ -571,7 +583,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Quick-Start"><span class="nav-number">1.</span> <span class="nav-text">Quick Start</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Create-a-new-post"><span class="nav-number">1.1.</span> <span class="nav-text">Create a new post</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Run-server"><span class="nav-number">1.2.</span> <span class="nav-text">Run server</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Generate-static-files"><span class="nav-number">1.3.</span> <span class="nav-text">Generate static files</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Deploy-to-remote-sites"><span class="nav-number">1.4.</span> <span class="nav-text">Deploy to remote sites</span></a></li></ol></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Allocator-StupidAllocator-简介"><span class="nav-number">1.</span> <span class="nav-text">Allocator-StupidAllocator 简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#StupidAllocator-分析"><span class="nav-number">2.</span> <span class="nav-text">StupidAllocator 分析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#主要函数"><span class="nav-number">3.</span> <span class="nav-text">主要函数</span></a></li></ol></div>
             
 
           </div>
@@ -615,6 +627,26 @@
 
 
         
+<div class="busuanzi-count">
+  <script async src="https://dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+  
+    <span class="site-uv">
+      <i class="fa fa-user"></i>
+      <span class="busuanzi-value" id="busuanzi_value_site_uv"></span>
+      
+    </span>
+  
+
+  
+    <span class="site-pv">
+      <i class="fa fa-eye"></i>
+      <span class="busuanzi-value" id="busuanzi_value_site_pv"></span>
+      
+    </span>
+  
+</div>
+
 
 
 
