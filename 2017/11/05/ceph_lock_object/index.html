@@ -82,14 +82,14 @@
 <meta name="description" content="ceph 读写流程中的锁读写流程的锁主要分两种 pg lock 和对象锁pg lock                                  主要维护pg的一致性， 所以恢复，写入等操作会加锁 ，通过控制journal这一层来控制一致性（入队，出对要加锁控制版本的变化）ondisk_read_lock / ondisk_write_lock     用来控制同一对象的读写关系，互斥同一">
 <meta name="keywords" content="ceph,osd">
 <meta property="og:type" content="article">
-<meta property="og:title" content="ceph源码分析:ceph 读写流程中的锁 - pg lock">
-<meta property="og:url" content="http://yoursite.com/2017/10/04/ceph_lock_pg/index.html">
+<meta property="og:title" content="ceph源码分析:ceph 读写流程中的锁 - object lock">
+<meta property="og:url" content="http://yoursite.com/2017/11/05/ceph_lock_object/index.html">
 <meta property="og:site_name" content="Simon G">
 <meta property="og:description" content="ceph 读写流程中的锁读写流程的锁主要分两种 pg lock 和对象锁pg lock                                  主要维护pg的一致性， 所以恢复，写入等操作会加锁 ，通过控制journal这一层来控制一致性（入队，出对要加锁控制版本的变化）ondisk_read_lock / ondisk_write_lock     用来控制同一对象的读写关系，互斥同一">
 <meta property="og:locale" content="en">
-<meta property="og:updated_time" content="2018-05-31T16:07:47.000Z">
+<meta property="og:updated_time" content="2018-05-31T16:39:37.000Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="ceph源码分析:ceph 读写流程中的锁 - pg lock">
+<meta name="twitter:title" content="ceph源码分析:ceph 读写流程中的锁 - object lock">
 <meta name="twitter:description" content="ceph 读写流程中的锁读写流程的锁主要分两种 pg lock 和对象锁pg lock                                  主要维护pg的一致性， 所以恢复，写入等操作会加锁 ，通过控制journal这一层来控制一致性（入队，出对要加锁控制版本的变化）ondisk_read_lock / ondisk_write_lock     用来控制同一对象的读写关系，互斥同一">
 
 
@@ -120,13 +120,13 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2017/10/04/ceph_lock_pg/"/>
+  <link rel="canonical" href="http://yoursite.com/2017/11/05/ceph_lock_object/"/>
 
 
 
 
 
-  <title>ceph源码分析:ceph 读写流程中的锁 - pg lock | Simon G</title>
+  <title>ceph源码分析:ceph 读写流程中的锁 - object lock | Simon G</title>
   
 
 
@@ -291,7 +291,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/10/04/ceph_lock_pg/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/11/05/ceph_lock_object/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="simon">
@@ -308,7 +308,7 @@
 
         
         
-          <h1 class="post-title" itemprop="name headline">ceph源码分析:ceph 读写流程中的锁 - pg lock</h1>
+          <h1 class="post-title" itemprop="name headline">ceph源码分析:ceph 读写流程中的锁 - object lock</h1>
         
 
         <div class="post-meta">
@@ -320,8 +320,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-10-04T20:09:00+08:00">
-                2017-10-04
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-11-05T20:15:00+08:00">
+                2017-11-05
               </time>
             
 
@@ -385,11 +385,31 @@
       
 
       
-        <h2 id="ceph-读写流程中的锁"><a href="#ceph-读写流程中的锁" class="headerlink" title="ceph 读写流程中的锁"></a>ceph 读写流程中的锁</h2><p>读写流程的锁主要分两种 pg lock 和对象锁<br>pg lock                                  主要维护pg的一致性， 所以恢复，写入等操作会加锁 ，通过控制journal这一层来控制一致性（入队，出对要加锁控制版本的变化）<br>ondisk_read_lock / ondisk_write_lock     用来控制同一对象的读写关系，互斥同一对象的读写, 可以参见–(yu) code rgw 11 其中ObjectContextRef用来描述一个对象，操作时会先获取他的锁 rw_locks</p>
-<h2 id="处理线程"><a href="#处理线程" class="headerlink" title="处理线程"></a>处理线程</h2><p>处理线程是osd_op_tp ，这是一个shardedwq<br>这个线程池的几个主要参数<br>osd_op_num_shards                所有的请求取模分到指定的线程组处理<br>osd_op_num_threads_per_shard    每个线程组中线程数<br>osd_op_thread_timeout           线程处理超时阀值<br>osd_op_thread_suicide_timeout   自杀阀值，超过此值osd自动退出<br><figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">OSD::OSD(...):</span><br><span class="line">...</span><br><span class="line"><span class="number">1672</span>=&gt;op_shardedwq(</span><br><span class="line"><span class="number">1673</span>    cct-&gt;_conf-&gt;osd_op_num_shards,</span><br><span class="line"><span class="number">1674</span>    <span class="keyword">this</span>,</span><br><span class="line"><span class="number">1675</span>    cct-&gt;_conf-&gt;osd_op_thread_timeout,</span><br><span class="line"><span class="number">1676</span>    cct-&gt;_conf-&gt;osd_op_thread_suicide_timeout,</span><br><span class="line"><span class="number">1677</span>    &amp;osd_op_tp),</span><br><span class="line"><span class="number">1678</span>  peering_wq(</span><br><span class="line"><span class="number">1679</span>    <span class="keyword">this</span>,</span><br><span class="line"><span class="number">1680</span>    cct-&gt;_conf-&gt;osd_op_thread_timeout,</span><br><span class="line"><span class="number">1681</span>    cct-&gt;_conf-&gt;osd_op_thread_suicide_timeout,</span><br><span class="line"><span class="number">1682</span>    &amp;osd_tp),</span><br><span class="line">...</span><br></pre></td></tr></table></figure></p>
-<h2 id="主要处理函数"><a href="#主要处理函数" class="headerlink" title="主要处理函数"></a>主要处理函数</h2><p>ShardedOpWQ的处理函数<br>可以看到pg 的锁的颗粒度还是比较大的，以pg为单位，所有在高速场景增加pg数量也可以有效提高并发<br><figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">void</span> OSD::ShardedOpWQ::_process(<span class="keyword">uint32_t</span> thread_index, heartbeat_handle_d *hb )</span><br><span class="line">&#123;</span><br><span class="line"><span class="number">8697</span>  <span class="keyword">uint32_t</span> shard_index = thread_index % num_shards;           <span class="comment">//</span></span><br><span class="line"><span class="number">8714</span>  pair&lt;PGRef, PGQueueable&gt; item = sdata-&gt;pqueue-&gt;dequeue();</span><br><span class="line"></span><br><span class="line"><span class="number">8717</span>  ThreadPool::<span class="function">TPHandle <span class="title">tp_handle</span><span class="params">(osd-&gt;cct, hb, timeout_interval,</span></span></span><br><span class="line"><span class="function"><span class="params"><span class="number">8718</span>    suicide_interval)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="number">8720</span>  (item.first)-&gt;lock_suspend_timeout(tp_handle);              <span class="comment">// 获取pg lock  －－－ 主要这三类操作 OP(osd-&gt;dequeue_op=&gt;ReplicatedPG::do_op)，snap trim(pg-&gt;snap_trimmer)，scrub(pg-&gt;scrub)， 见下面</span></span><br><span class="line"></span><br><span class="line"><span class="number">8722</span>  boost::optional&lt;PGQueueable&gt; op;</span><br><span class="line"></span><br><span class="line"><span class="number">8730</span>  op = sdata-&gt;pg_for_processing[&amp;*(item.first)].front();</span><br><span class="line"></span><br><span class="line"><span class="number">8758</span>  op-&gt;run(osd, item.first, tp_handle);                        <span class="comment">// 根据op类型调用不同处理函数</span></span><br><span class="line"></span><br><span class="line"><span class="number">8771</span>  (item.first)-&gt;unlock();                                     <span class="comment">// 释放pg lock</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
-<h2 id="主要处理三类操作"><a href="#主要处理三类操作" class="headerlink" title="主要处理三类操作"></a>主要处理三类操作</h2><p>PGSnapTrim<br>PGScrub<br>OpRequestRef<br>同时处理三类操作意味着如果pg 在处理snap trim 或者scrub操作时pg 是无法响应请求的<br>同时如果单个pg的处理时间过长也会导致所属组的线程数量变少，相关的pg处理速度<br><em>最差情况是同组所有线程都在处理snap trim 和scrub操作导致映射这组上的其他pg读写操作无法处理，这一点值得注意</em><br>所以要缩短scrub操作的处理时间和增大间隔，并在业务空闲时段处理<br><figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">347</span>-<span class="class"><span class="keyword">class</span> <span class="title">PGQueueable</span> &#123;</span></span><br><span class="line"><span class="number">348</span>  -<span class="keyword">typedef</span> boost::variant&lt;</span><br><span class="line"><span class="number">349</span>    OpRequestRef,</span><br><span class="line"><span class="number">350</span>    PGSnapTrim,</span><br><span class="line"><span class="number">351</span>    PGScrub</span><br><span class="line"><span class="number">352</span>    &gt; QVariant;</span><br><span class="line"><span class="number">353</span>  QVariant qvariant;</span><br><span class="line"><span class="number">354</span>  <span class="keyword">int</span> cost;</span><br><span class="line"><span class="number">355</span>  <span class="keyword">unsigned</span> priority;</span><br><span class="line"><span class="number">356</span>  <span class="keyword">utime_t</span> start_time;</span><br><span class="line"><span class="number">357</span>  <span class="keyword">entity_inst_t</span> owner;</span><br><span class="line"><span class="number">358</span>  -<span class="class"><span class="keyword">struct</span> <span class="title">RunVis</span> :</span> <span class="keyword">public</span> boost::static_visitor&lt;&gt; &#123;</span><br><span class="line"><span class="number">359</span>    OSD *osd;</span><br><span class="line"><span class="number">360</span>    PGRef &amp;pg;</span><br><span class="line"><span class="number">361</span>    ThreadPool::TPHandle &amp;handle;</span><br><span class="line"><span class="number">362</span>    -RunVis(OSD *osd, PGRef &amp;pg, ThreadPool::TPHandle &amp;handle)</span><br><span class="line"><span class="number">363</span>      : osd(osd), pg(pg), handle(handle) &#123;&#125;</span><br><span class="line"><span class="number">364</span>    <span class="function"><span class="keyword">void</span> <span class="title">operator</span><span class="params">()</span><span class="params">(OpRequestRef &amp;op)</span></span>;</span><br><span class="line"><span class="number">365</span>    <span class="function"><span class="keyword">void</span> <span class="title">operator</span><span class="params">()</span><span class="params">(PGSnapTrim &amp;op)</span></span>;</span><br><span class="line"><span class="number">366</span>    <span class="function"><span class="keyword">void</span> <span class="title">operator</span><span class="params">()</span><span class="params">(PGScrub &amp;op)</span></span>;</span><br><span class="line"><span class="number">367</span>  &#125;;</span><br></pre></td></tr></table></figure></p>
-<h2 id="相关配置"><a href="#相关配置" class="headerlink" title="相关配置"></a>相关配置</h2><p>osd_op_num_shards<br>osd_op_num_threads_per_shard<br>osd_op_thread_timeout<br>osd_op_thread_suicide_timeout</p>
+        <h2 id="ceph-读写流程中的锁"><a href="#ceph-读写流程中的锁" class="headerlink" title="ceph 读写流程中的锁"></a>ceph 读写流程中的锁</h2><p>读写流程的锁主要分两种 pg lock 和对象锁<br>pg lock                                  主要维护pg的一致性， 所以恢复，写入等操作会加锁 ，通过控制journal这一层来控制一致性（入队，出对要加锁控制版本的变化）<br>ondisk_read_lock / ondisk_write_lock     用来控制同一对象的读写关系，互斥同一对象的读写, 可以参见–(yu) code rgw 11 其中ObjectContextRef用来描述一个对象，操作时会先获取这个对象的锁</p>
+<h2 id="对象锁的管理"><a href="#对象锁的管理" class="headerlink" title="对象锁的管理"></a>对象锁的管理</h2><p>ObcLockManager 主要是管理多个对象及其锁的状态，在运行中，对象锁的状态可以在其中查询到， 其中的描述对象的类是ObjectContext， 全局使用ObjectContextRef 这个智能指针封装版本共享</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">bool</span> ObcLockManager::get_rw_locks(</span><br><span class="line">    ObjectContext::RWState::State type,         =&gt; param ctx-&gt;lock_type</span><br><span class="line">    <span class="keyword">const</span> <span class="keyword">hobject_t</span> &amp;hoid,                      =&gt; ctx-&gt;snapset_obc-&gt;obs.oi.soid</span><br><span class="line">    ObjectContextRef obc,                       =&gt; ctx-&gt;snapset_obc</span><br><span class="line">    OpRequestRef op)                            =&gt; ctx-&gt;op</span><br><span class="line">    </span><br><span class="line">调用</span><br><span class="line"><span class="keyword">if</span> (obc-&gt;get_lock_type(op, type))</span><br><span class="line">    <span class="comment">// 成功</span></span><br><span class="line"><span class="keyword">else</span></span><br><span class="line">    <span class="comment">// 失败</span></span><br></pre></td></tr></table></figure>
+<p>传入对象获取对象ObjectContext 的引用ObjectContextRef</p>
+<h2 id="给一个对象加锁"><a href="#给一个对象加锁" class="headerlink" title="给一个对象加锁"></a>给一个对象加锁</h2><p>锁类型分为3累既读锁，写锁和读写锁，分别调用锁对象RWState相应方法</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">ObjectContext::get_lock_type(OpRequestRef op, RWState::State type) // 获取该操作的响应的锁</span><br><span class="line">                =&gt; get_write(op);   -&gt; (RWState)rwstate.get_write(op, false);</span><br><span class="line">                =&gt; get_read(op);    -&gt; (RWState)rwstate.get_read(op);</span><br><span class="line">                =&gt; get_excl(op);    -&gt; (RWState)rwstate.get_excl(op);</span><br></pre></td></tr></table></figure>
+<h2 id="对象的锁处理"><a href="#对象的锁处理" class="headerlink" title="对象的锁处理"></a>对象的锁处理</h2><p>ObjectContext::RWState（osd_types.h::3482）</p>
+<p>是一种特殊的锁，基本机制是</p>
+<ul>
+<li><p>可以多读， 只会增加count</p>
+</li>
+<li><p>可以多写， 底层的journal 保证的多写的原子性， 同理只会增加count</p>
+</li>
+<li>每次一加锁失败会增加waiters， 提示需要释放当前锁，避免其他需要处理的请求等待过长时间</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">bool get_excl(OpRequestRef op) &#123;</span><br><span class="line">    if (get_excl_lock()) &#123;</span><br><span class="line">        return true;</span><br><span class="line">    &#125; // else</span><br><span class="line">    if (op)</span><br><span class="line">        waiters.push_back(op);  // 插入操作到waiter中</span><br><span class="line">    return false;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<ul>
+<li>相应的当获取锁时会查看是否有waiters， 其他处理等待过长时间</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">3525    -bool get_read_lock() &#123;</span><br><span class="line">3526      // don&apos;t starve anybody!</span><br><span class="line">3527      if (!waiters.empty()) &#123;         // 如果有waiter，则加同类型锁会失败</span><br><span class="line">3528        return false;</span><br><span class="line">3529      &#125;</span><br><span class="line">...</span><br><span class="line">3557      if (!greedy) &#123;</span><br><span class="line">3558        // don&apos;t starve anybody!</span><br><span class="line">3559        if (!waiters.empty() ||       // 同理</span><br><span class="line">3560            recovery_read_marker) &#123;</span><br><span class="line">3561          return false;</span><br><span class="line">3562        &#125;</span><br><span class="line">3563      &#125;</span><br></pre></td></tr></table></figure>
+<ul>
+<li>另一种类型的锁比较特殊，读写权限的锁，每次互斥， 操作索引是这种锁，所以导致么个请求加锁互斥</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">3581    -bool get_excl_lock() &#123;</span><br><span class="line">3582      switch (state) &#123;</span><br><span class="line">3583      case RWNONE:</span><br><span class="line">3584        assert(count == 0);</span><br><span class="line">3585        state = RWEXCL;</span><br><span class="line">3586        count = 1;</span><br><span class="line">3587        return true;</span><br><span class="line">3588      case RWWRITE:</span><br><span class="line">3589        return false;</span><br><span class="line">3590      case RWREAD:</span><br><span class="line">3591        return false;</span><br><span class="line">3592      case RWEXCL:</span><br><span class="line">3593        return false;</span><br><span class="line">3594      default:</span><br><span class="line">3595        assert(0 == &quot;unhandled case&quot;);</span><br><span class="line">3596        return false;</span><br><span class="line">3597      &#125;</span><br><span class="line">3598    &#125;</span><br></pre></td></tr></table></figure>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>ceph 的对象锁保证了对象操作的一致性，最大限度的提高读写的并发，多读，多写不互斥，并且考虑了操作的即使性，不过对于需要读写锁的操作，ceph整体操作流程较长的缺点就会放大，同时对于加锁失败的操作ceph的处理会放回队列等待下次调度，着进一步加大这类操作的处理时间</p>
 
       
     </div>
@@ -422,8 +442,8 @@
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
             
-              <a href="/2017/09/23/stupidallocator_analy/" rel="next" title="ceph源码分析:bluestore - StupidAllocator">
-                <i class="fa fa-chevron-left"></i> ceph源码分析:bluestore - StupidAllocator
+              <a href="/2017/10/21/kernel_loadavg/" rel="next" title="kernel load的计算">
+                <i class="fa fa-chevron-left"></i> kernel load的计算
               </a>
             
           </div>
@@ -432,8 +452,8 @@
 
           <div class="post-nav-prev post-nav-item">
             
-              <a href="/2017/10/21/kernel_loadavg/" rel="prev" title="kernel load的计算">
-                kernel load的计算 <i class="fa fa-chevron-right"></i>
+              <a href="/2018/04/16/rbd_nbd_analy/" rel="prev" title="ceph源码分析:rbd-nbd">
+                ceph源码分析:rbd-nbd <i class="fa fa-chevron-right"></i>
               </a>
             
           </div>
@@ -574,7 +594,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#ceph-读写流程中的锁"><span class="nav-number">1.</span> <span class="nav-text">ceph 读写流程中的锁</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#处理线程"><span class="nav-number">2.</span> <span class="nav-text">处理线程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#主要处理函数"><span class="nav-number">3.</span> <span class="nav-text">主要处理函数</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#主要处理三类操作"><span class="nav-number">4.</span> <span class="nav-text">主要处理三类操作</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#相关配置"><span class="nav-number">5.</span> <span class="nav-text">相关配置</span></a></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#ceph-读写流程中的锁"><span class="nav-number">1.</span> <span class="nav-text">ceph 读写流程中的锁</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#对象锁的管理"><span class="nav-number">2.</span> <span class="nav-text">对象锁的管理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#给一个对象加锁"><span class="nav-number">3.</span> <span class="nav-text">给一个对象加锁</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#对象的锁处理"><span class="nav-number">4.</span> <span class="nav-text">对象的锁处理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#总结"><span class="nav-number">5.</span> <span class="nav-text">总结</span></a></li></ol></div>
             
 
           </div>
