@@ -68,7 +68,7 @@
 
 
 
-  <meta name="keywords" content="ceph,nbd,rbd," />
+  <meta name="keywords" content="ceph,rbd,nbd," />
 
 
 
@@ -80,7 +80,7 @@
 
 
 <meta name="description" content="nbd简介NBD(Network Block Device)让你可以将一个远程主机的磁盘空间,当作一个块设备来使用.就像一块硬盘一样。NBD是内核模块，大部分linux发行版都已经包含它 rbd-nbd通过nbd librbd来映射一个ceph镜像为本地块设备 rbd-nbd使用查看是否安装nbd驱动12&amp;gt;lsmon | grep nbdnbd                    2048">
-<meta name="keywords" content="ceph,nbd,rbd">
+<meta name="keywords" content="ceph,rbd,nbd">
 <meta property="og:type" content="article">
 <meta property="og:title" content="ceph源码分析:rbd-nbd">
 <meta property="og:url" content="http://yoursite.com/2018/04/16/rbd_nbd_analy/index.html">
@@ -417,9 +417,9 @@
           
             <a href="/tags/ceph/" rel="tag"># ceph</a>
           
-            <a href="/tags/nbd/" rel="tag"># nbd</a>
-          
             <a href="/tags/rbd/" rel="tag"># rbd</a>
+          
+            <a href="/tags/nbd/" rel="tag"># nbd</a>
           
         </div>
       
@@ -432,8 +432,8 @@
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
             
-              <a href="/2017/11/05/ceph_lock_object/" rel="next" title="ceph源码分析:ceph 读写流程中的锁 - object lock">
-                <i class="fa fa-chevron-left"></i> ceph源码分析:ceph 读写流程中的锁 - object lock
+              <a href="/2017/12/02/ceph_rbd_snap_and_clone/" rel="next" title="ceph源码分析:rbd snap和clone的实现和区别">
+                <i class="fa fa-chevron-left"></i> ceph源码分析:rbd snap和clone的实现和区别
               </a>
             
           </div>
@@ -519,7 +519,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">9</span>
+                  <span class="site-state-item-count">13</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -530,7 +530,7 @@
               
               <div class="site-state-item site-state-categories">
                 <a href="/categories/index.html">
-                  <span class="site-state-item-count">2</span>
+                  <span class="site-state-item-count">5</span>
                   <span class="site-state-item-name">categories</span>
                 </a>
               </div>
@@ -541,7 +541,7 @@
               
               <div class="site-state-item site-state-tags">
                 <a href="/tags/index.html">
-                  <span class="site-state-item-count">12</span>
+                  <span class="site-state-item-count">14</span>
                   <span class="site-state-item-name">tags</span>
                 </a>
               </div>
