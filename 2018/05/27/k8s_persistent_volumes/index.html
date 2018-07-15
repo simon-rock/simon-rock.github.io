@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next muse use-motion" lang="en">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.3" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png?v=5.1.3">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png?v=5.1.3">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png?v=5.1.3">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.3" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Kubernetes," />
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="简介简单介绍一下Kubernetes中关于storeage相关的概念PV：PersistentVolume，持久卷，一种存储资源，类似volum，可以使存储的生命周期与pod的生命周期隔离开PVC：PersistentVolumeClaim，卷生明，代表用户的存储需求，用于消耗PV资源，通过指定的访问模式StorageClass：动态的存储资源， 可以使管理不用向用户暴露volume的实现细节 v">
+<meta name="keywords" content="Kubernetes">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes - Persistent Volumes 简介">
+<meta property="og:url" content="http://yoursite.com/2018/05/27/k8s_persistent_volumes/index.html">
+<meta property="og:site_name" content="Simon G">
+<meta property="og:description" content="简介简单介绍一下Kubernetes中关于storeage相关的概念PV：PersistentVolume，持久卷，一种存储资源，类似volum，可以使存储的生命周期与pod的生命周期隔离开PVC：PersistentVolumeClaim，卷生明，代表用户的存储需求，用于消耗PV资源，通过指定的访问模式StorageClass：动态的存储资源， 可以使管理不用向用户暴露volume的实现细节 v">
+<meta property="og:locale" content="en">
+<meta property="og:updated_time" content="2018-07-15T03:50:53.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Kubernetes - Persistent Volumes 简介">
+<meta name="twitter:description" content="简介简单介绍一下Kubernetes中关于storeage相关的概念PV：PersistentVolume，持久卷，一种存储资源，类似volum，可以使存储的生命周期与pod的生命周期隔离开PVC：PersistentVolumeClaim，卷生明，代表用户的存储需求，用于消耗PV资源，通过指定的访问模式StorageClass：动态的存储资源， 可以使管理不用向用户暴露volume的实现细节 v">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '5.1.3',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2018/05/27/k8s_persistent_volumes/"/>
+
+
+
+
+
+  <title>Kubernetes - Persistent Volumes 简介 | Simon G</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="en">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Simon G</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+        <li class="menu-item menu-item-search">
+          
+            <a href="javascript:;" class="popup-trigger">
+          
+            
+              <i class="menu-item-icon fa fa-search fa-fw"></i> <br />
+            
+            Search
+          </a>
+        </li>
+      
+    </ul>
+  
+
+  
+    <div class="site-search">
+      
+  
+  <div class="algolia-popup popup search-popup">
+    <div class="algolia-search">
+      <div class="algolia-search-input-icon">
+        <i class="fa fa-search"></i>
+      </div>
+      <div class="algolia-search-input" id="algolia-search-input"></div>
+    </div>
+
+    <div class="algolia-results">
+      <div id="algolia-stats"></div>
+      <div id="algolia-hits"></div>
+      <div id="algolia-pagination" class="algolia-pagination"></div>
+    </div>
+
+    <span class="popup-btn-close">
+      <i class="fa fa-times-circle"></i>
+    </span>
+  </div>
+
+
+
+
+    </div>
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-tags" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/05/27/k8s_persistent_volumes/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="simon">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Simon G">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Kubernetes - Persistent Volumes 简介</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-05-27T20:00:00+08:00">
+                2018-05-27
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kubernetes/" itemprop="url" rel="index">
+                    <span itemprop="name">Kubernetes</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+            <span class="post-meta-divider">|</span>
+            <span class="page-pv"><i class="fa fa-file-o"></i>
+            <span class="busuanzi-value" id="busuanzi_value_page_pv" ></span>
+            </span>
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>简单介绍一下Kubernetes中关于storeage相关的概念<br>PV：PersistentVolume，持久卷，一种存储资源，类似volum，可以使存储的生命周期与pod的生命周期隔离开<br>PVC：PersistentVolumeClaim，卷生明，代表用户的存储需求，用于消耗PV资源，通过指定的访问模式<br>StorageClass：动态的存储资源， 可以使管理不用向用户暴露volume的实现细节</p>
+<h2 id="volume和claim的生命周期"><a href="#volume和claim的生命周期" class="headerlink" title="volume和claim的生命周期"></a>volume和claim的生命周期</h2><h3 id="供给"><a href="#供给" class="headerlink" title="供给"></a>供给</h3><p>分为动态和静态</p>
+<h3 id="静态"><a href="#静态" class="headerlink" title="静态"></a>静态</h3><p>集群的管理员创建一些PVs. 他们携带真实存储的信息，可以被用户使用</p>
+<h3 id="动态"><a href="#动态" class="headerlink" title="动态"></a>动态</h3><p>基于StorageClass：PVC必须请求一个storageclass，并且管理员必须创建和配置了这个storageclass<br>要想存储能都动态分配，管理员必须允许DefaultStorageClass</p>
+<h3 id="绑定"><a href="#绑定" class="headerlink" title="绑定"></a>绑定</h3><p>PVC创建时，指定要求的存储大小和访问模式。如果找到合适的pv会处于bound状态，反之处于unbound状态</p>
+<h3 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h3><p>类似volume，绑定PV给Pod。pod通过volume的PVC来访问PV</p>
+<h3 id="释放"><a href="#释放" class="headerlink" title="释放"></a>释放</h3><p>PVC被删除后，对应的PV会变为release状态。要想再次被其他的PVC使用必选先回收它</p>
+<h3 id="回收"><a href="#回收" class="headerlink" title="回收"></a>回收</h3><p>告诉集群如何处理被释放的PV</p>
+<ul>
+<li>Retained 需要手动再次声明该资源</li>
+<li>Recycled 当PVC被删除后，对应的PV资源可以被再次bound</li>
+<li>Deleted 释放后，会移除PV对象。注意动态资源总是会被释放的</li>
+</ul>
+<h2 id="PV类型"><a href="#PV类型" class="headerlink" title="PV类型"></a>PV类型</h2><p>PV以插件形式提供。当前支持一下类型<br>GCEPersistentDisk<br>AWSElasticBlockStore<br>AzureFile<br>AzureDisk<br>FC (Fibre Channel)**<br>FlexVolume<br>Flocker<br>NFS<br>iSCSI<br>RBD (Ceph Block Device)<br>CephFS<br>Cinder (OpenStack block storage)<br>Glusterfs<br>VsphereVolume<br>Quobyte Volumes<br>HostPath (Single node testing only – local storage is not supported in any way and WILL NOT WORK in a multi-node cluster)<br>Portworx Volumes<br>ScaleIO Volumes<br>StorageOS</p>
+<h3 id="访问模式"><a href="#访问模式" class="headerlink" title="访问模式"></a>访问模式</h3><p>三种访问模式</p>
+<ul>
+<li>ReadWriteOnce – the volume can be mounted as read-write by a single node</li>
+<li>ReadOnlyMany – the volume can be mounted read-only by many nodes</li>
+<li>ReadWriteMany – the volume can be mounted as read-write by many nodes<br>命令行查看状态时：</li>
+<li>RWO - ReadWriteOnce</li>
+<li>ROX - ReadOnlyMany</li>
+<li>RWX - ReadWriteMan</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Volume Plugin</th>
+<th style="text-align:left">ReadWriteOnce</th>
+<th style="text-align:left">ReadOnlyMany</th>
+<th style="text-align:left">ReadWriteMany</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">AWSElasticBlockStore</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">-</td>
+<td style="text-align:left">-</td>
+</tr>
+<tr>
+<td style="text-align:left">AzureFile</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+</tr>
+<tr>
+<td style="text-align:left">AzureDisk</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">-</td>
+<td style="text-align:left">-</td>
+</tr>
+<tr>
+<td style="text-align:left">CephFS</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+</tr>
+<tr>
+<td style="text-align:left">Cinder</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">-</td>
+<td style="text-align:left">-</td>
+</tr>
+<tr>
+<td style="text-align:left">FC</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">-</td>
+</tr>
+<tr>
+<td style="text-align:left">FlexVolume</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">-</td>
+</tr>
+<tr>
+<td style="text-align:left">Flocker</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">-</td>
+<td style="text-align:left">-</td>
+</tr>
+<tr>
+<td style="text-align:left">GCEPersistentDisk</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">-</td>
+</tr>
+<tr>
+<td style="text-align:left">Glusterfs</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+</tr>
+<tr>
+<td style="text-align:left">HostPath</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">-</td>
+<td style="text-align:left">-</td>
+</tr>
+<tr>
+<td style="text-align:left">iSCSI</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">-</td>
+</tr>
+<tr>
+<td style="text-align:left">Quobyte</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+</tr>
+<tr>
+<td style="text-align:left">NFS</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+</tr>
+<tr>
+<td style="text-align:left">RBD</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">-</td>
+</tr>
+<tr>
+<td style="text-align:left">VsphereVolume</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">-</td>
+<td style="text-align:left">- (works when pods are collocated)</td>
+</tr>
+<tr>
+<td style="text-align:left">PortworxVolume</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">-</td>
+<td style="text-align:left">✓</td>
+</tr>
+<tr>
+<td style="text-align:left">ScaleIO</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">-</td>
+</tr>
+<tr>
+<td style="text-align:left">StorageOS</td>
+<td style="text-align:left">✓</td>
+<td style="text-align:left">-</td>
+<td style="text-align:left">-</td>
+</tr>
+</tbody>
+</table>
+<h3 id="回收策略"><a href="#回收策略" class="headerlink" title="回收策略"></a>回收策略</h3><p>同样有三种Retain Recycle Delete</p>
+<h3 id="阶段"><a href="#阶段" class="headerlink" title="阶段"></a>阶段</h3><ul>
+<li>Available：空闲的资源，未绑定给PVC</li>
+<li>Bound：绑定给了某个PVC</li>
+<li>Released：PVC已经删除了，但是PV还没有被集群回收</li>
+<li>Failed：PV在自动回收中失败了</li>
+</ul>
+<h2 id="PersistentVolumeClaims"><a href="#PersistentVolumeClaims" class="headerlink" title="PersistentVolumeClaims"></a>PersistentVolumeClaims</h2><h3 id="访问模式-1"><a href="#访问模式-1" class="headerlink" title="访问模式"></a>访问模式</h3><p>类似PV的访问模式</p>
+<h3 id="卷模式"><a href="#卷模式" class="headerlink" title="卷模式"></a>卷模式</h3><p>文件系统或是块设备</p>
+<h3 id="资源"><a href="#资源" class="headerlink" title="资源"></a>资源</h3><p>声明访问的存储的大小等信息</p>
+<h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/" target="_blank" rel="noopener">https://kubernetes.io/docs/concepts/storage/persistent-volumes/</a><br><a href="https://www.cnblogs.com/styshoo/p/6731425.html" target="_blank" rel="noopener">https://www.cnblogs.com/styshoo/p/6731425.html</a></p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/05/12/ceph_rgw_metadata_bucket/" rel="next" title="ceph分析 - radosrgw 相关元数据 - bucket元数据及存储结构">
+                <i class="fa fa-chevron-left"></i> ceph分析 - radosrgw 相关元数据 - bucket元数据及存储结构
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2018/06/09/rbd_kubernetes_pv/" rel="prev" title="kubernetes - rbd创建kubernetes PV">
+                kubernetes - rbd创建kubernetes PV <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+  
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">simon</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">14</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">15</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          <div class="links-of-author motion-element">
+            
+              
+                <span class="links-of-author-item">
+                  <a href="http://blog.csdn.net/for_tech" target="_blank" title="csdn">
+                    
+                      <i class="fa fa-fw fa-csdn"></i>csdn</a>
+                </span>
+              
+            
+          </div>
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#简介"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#volume和claim的生命周期"><span class="nav-number">2.</span> <span class="nav-text">volume和claim的生命周期</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#供给"><span class="nav-number">2.1.</span> <span class="nav-text">供给</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#静态"><span class="nav-number">2.2.</span> <span class="nav-text">静态</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#动态"><span class="nav-number">2.3.</span> <span class="nav-text">动态</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#绑定"><span class="nav-number">2.4.</span> <span class="nav-text">绑定</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#使用"><span class="nav-number">2.5.</span> <span class="nav-text">使用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#释放"><span class="nav-number">2.6.</span> <span class="nav-text">释放</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#回收"><span class="nav-number">2.7.</span> <span class="nav-text">回收</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#PV类型"><span class="nav-number">3.</span> <span class="nav-text">PV类型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#访问模式"><span class="nav-number">3.1.</span> <span class="nav-text">访问模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#回收策略"><span class="nav-number">3.2.</span> <span class="nav-text">回收策略</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#阶段"><span class="nav-number">3.3.</span> <span class="nav-text">阶段</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#PersistentVolumeClaims"><span class="nav-number">4.</span> <span class="nav-text">PersistentVolumeClaims</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#访问模式-1"><span class="nav-number">4.1.</span> <span class="nav-text">访问模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#卷模式"><span class="nav-number">4.2.</span> <span class="nav-text">卷模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#资源"><span class="nav-number">4.3.</span> <span class="nav-text">资源</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考"><span class="nav-number">5.</span> <span class="nav-text">参考</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2018</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">simon</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Muse</a> v5.1.3</div>
+
+
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+  
+    <span class="site-uv">
+      <i class="fa fa-user"></i>
+      <span class="busuanzi-value" id="busuanzi_value_site_uv"></span>
+      
+    </span>
+  
+
+  
+    <span class="site-pv">
+      <i class="fa fa-eye"></i>
+      <span class="busuanzi-value" id="busuanzi_value_site_pv"></span>
+      
+    </span>
+  
+</div>
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.3"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.3"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.3"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.3"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.3"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+  
+  
+  <link rel="stylesheet" href="/lib/algolia-instant-search/instantsearch.min.css">
+
+  
+  
+  <script src="/lib/algolia-instant-search/instantsearch.min.js"></script>
+  
+
+  <script src="/js/src/algolia-search.js?v=5.1.3"></script>
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next muse use-motion" lang="en">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.3" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png?v=5.1.3">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png?v=5.1.3">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png?v=5.1.3">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.3" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="ceph,bluestore,bluefs," />
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="bluefs 简介bluefs 实现了一个简单的文件系统，只支持追加写，没有实现posix的接口，本身只有一层目录和一层文件的两层结构，为rocksdb 量身定做，符合rocksdb和leveldb的文件结构的数据结构rocksdb的存在在bluestore的架构里用于存储元数据，所以bluefs只能自己 管理元数据具体的方式是开辟专门的空间来记录数据操作日志，恢复时利用日志来构建使用关系，定期压">
+<meta name="keywords" content="ceph,bluestore,bluefs">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ceph源码分析 - bluestore - bluefs">
+<meta property="og:url" content="http://yoursite.com/2017/09/02/bluefs_analy/index.html">
+<meta property="og:site_name" content="Simon G">
+<meta property="og:description" content="bluefs 简介bluefs 实现了一个简单的文件系统，只支持追加写，没有实现posix的接口，本身只有一层目录和一层文件的两层结构，为rocksdb 量身定做，符合rocksdb和leveldb的文件结构的数据结构rocksdb的存在在bluestore的架构里用于存储元数据，所以bluefs只能自己 管理元数据具体的方式是开辟专门的空间来记录数据操作日志，恢复时利用日志来构建使用关系，定期压">
+<meta property="og:locale" content="en">
+<meta property="og:updated_time" content="2018-07-15T03:50:15.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="ceph源码分析 - bluestore - bluefs">
+<meta name="twitter:description" content="bluefs 简介bluefs 实现了一个简单的文件系统，只支持追加写，没有实现posix的接口，本身只有一层目录和一层文件的两层结构，为rocksdb 量身定做，符合rocksdb和leveldb的文件结构的数据结构rocksdb的存在在bluestore的架构里用于存储元数据，所以bluefs只能自己 管理元数据具体的方式是开辟专门的空间来记录数据操作日志，恢复时利用日志来构建使用关系，定期压">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '5.1.3',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2017/09/02/bluefs_analy/"/>
+
+
+
+
+
+  <title>ceph源码分析 - bluestore - bluefs | Simon G</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="en">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Simon G</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+        <li class="menu-item menu-item-search">
+          
+            <a href="javascript:;" class="popup-trigger">
+          
+            
+              <i class="menu-item-icon fa fa-search fa-fw"></i> <br />
+            
+            Search
+          </a>
+        </li>
+      
+    </ul>
+  
+
+  
+    <div class="site-search">
+      
+  
+  <div class="algolia-popup popup search-popup">
+    <div class="algolia-search">
+      <div class="algolia-search-input-icon">
+        <i class="fa fa-search"></i>
+      </div>
+      <div class="algolia-search-input" id="algolia-search-input"></div>
+    </div>
+
+    <div class="algolia-results">
+      <div id="algolia-stats"></div>
+      <div id="algolia-hits"></div>
+      <div id="algolia-pagination" class="algolia-pagination"></div>
+    </div>
+
+    <span class="popup-btn-close">
+      <i class="fa fa-times-circle"></i>
+    </span>
+  </div>
+
+
+
+
+    </div>
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-tags" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/09/02/bluefs_analy/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="simon">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Simon G">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">ceph源码分析 - bluestore - bluefs</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-09-02T20:31:17+08:00">
+                2017-09-02
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/storage/" itemprop="url" rel="index">
+                    <span itemprop="name">storage</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+            <span class="post-meta-divider">|</span>
+            <span class="page-pv"><i class="fa fa-file-o"></i>
+            <span class="busuanzi-value" id="busuanzi_value_page_pv" ></span>
+            </span>
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="bluefs-简介"><a href="#bluefs-简介" class="headerlink" title="bluefs 简介"></a>bluefs 简介</h2><p>bluefs 实现了一个简单的文件系统，只支持追加写，没有实现posix的接口，<br>本身只有一层目录和一层文件的两层结构，为rocksdb 量身定做，符合rocksdb和leveldb的文件结构的数据结构<br>rocksdb的存在在bluestore的架构里用于存储元数据，所以bluefs只能自己 管理元数据<br>具体的方式是开辟专门的空间来记录数据操作日志，恢复时利用日志来构建使用关系，定期压缩日志\</p>
+<h2 id="bluefs-结构"><a href="#bluefs-结构" class="headerlink" title="bluefs 结构"></a>bluefs 结构</h2><p>BlockDevice 用于描述物理设备的读写（hdd ssd 都是KernelDevice）<br>IOContext 用于描述IO方式，此处主要是异步IO（类似libaio）， 需要提交到队列，然后commit，等待返回结果<br>    bluefs 的成员IOContext 主要用于读和super的读（只是作为参数）， super的写是sync写<br>    IOContext    主要用在FileWriter 写时（普通写和操作log写）</p>
+<p>Allocator   用于描述磁盘的空闲空间管理，已经分配的空间会由具体的存储引擎来负责保存元数据<br>    bluestore 会将元数据保存到rockdb<br>    bluefs 将元数据的操作日志保存到磁盘中，重建时需要重新replay日志， 定期compact来减少日志量<br>Allocator 包含两种策略StupidAllocator 和BitMapAllocator<br>    StupidAllocator 基于btree_interval_set 的实现<br>    BitMapAllocator 基于bitmap的实现</p>
+<h2 id="主要接口及读写流程"><a href="#主要接口及读写流程" class="headerlink" title="主要接口及读写流程"></a>主要接口及读写流程</h2><p>BlueFS::<br>add_block_device             // 添加设备<br>add_block_extent             // 添加可用范围<br>mkfs                         // 首次创建时初始化<br>mount                        // 如果非首次，挂载时会读取日志重建freelist<br>mkdir                        // 创建目录，只支持一级目录<br>open_for_write &amp;&amp; BlueFS::FileWriter h     // 写文件需要先获得或创建一个写文件句柄<br>h-&gt;append                                  // 写文件<br>fsync  BlueFS::FileWriter h                // 同步到系统<br>close_writer                               // 关闭句柄<br>open_for_read                              // 获得读句柄<br>read<br>umount</p>
+<p>sync_metadata                              // 同步原数据</p>
+<p>bluefs_compact_log_sync true or false<br>unlink<br>flush_log<br>rmdir<br>flush_log                                  // 下刷元数据<br>compact_log<br>// 压缩日志，些时间长了原数据日志很大影响加载时间和空间<br>引用：<br>Inode索引号0和1，由BlueFS内部使用，并且都用于日志文件。正常情况下，日志文件只使用索引号1，只有在Compact日志时才使用临时的索引号0。日志文件只支持Append操作，时间长了，日志文件会占用较大的磁盘空间，并且Replay日志时间也会变久。实际上，日志文件中有用的数据只有，目录文件的元数据以及目录和文件的对应关系。Compact日志的目是，提取这部分有用数据写入到新磁盘空间，并丢掉原来的日志数据，减少日志文件大小，释放磁盘空间。</p>
+<p>Compact日志时先使用索引号0的新日志文件将有用数据写入到磁盘的新位置，然后用新日志文件的元数据更新超级块（除索引号外），将超级块Flush到磁盘。从目前实现来看，修改超级块是个危险系数很高的操作，一方面是因为超级块的重要程度，如果超级块数据出错所有文件将都无法使用，另一方面似乎没有对超级块做数据保护，只提供CRC检验。不过，正常情况下极少修改超级块的数据，写磁盘时也会绕过本地缓存</p>
+<h2 id="主要数据结构"><a href="#主要数据结构" class="headerlink" title="主要数据结构"></a>主要数据结构</h2><figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">id 设备MAX_BDEV BDEV_WAL BDEV_DB BDEV_SLOW ， 一共三种设备， MAX_BD_EV 对应上限</span><br><span class="line"><span class="number">244</span>-  <span class="comment">/*</span></span><br><span class="line"><span class="comment">245   * There are up to 3 block devices:</span></span><br><span class="line"><span class="comment">246   *</span></span><br><span class="line"><span class="comment">247   *  BDEV_DB   db/      - the primary db device</span></span><br><span class="line"><span class="comment">248   *  BDEV_WAL  db.wal/  - a small, fast device, specifically for the WAL</span></span><br><span class="line"><span class="comment">249   *  BDEV_SLOW db.slow/ - a big, slow device, to spill over to as BDEV_DB fills</span></span><br><span class="line"><span class="comment">250   */</span></span><br><span class="line"><span class="number">251</span>  <span class="built_in">vector</span>&lt;BlockDevice*&gt; bdev;                  </span><br><span class="line"><span class="comment">///&lt; block devices we can use // 封装了不同设直接备操作(read write)</span></span><br><span class="line"><span class="number">252</span>  <span class="built_in">vector</span>&lt;IOContext*&gt; ioc;                     </span><br><span class="line"><span class="comment">///&lt; IOContexts for bdevs     // IOContext主要封装读写操作模式（libaio directio）</span></span><br><span class="line"><span class="number">253</span>  <span class="built_in">vector</span>&lt;interval_set&lt;<span class="keyword">uint64_t</span>&gt; &gt; block_all;  </span><br><span class="line"><span class="comment">///&lt; extents in bdev we own</span></span><br><span class="line"><span class="number">254</span>  <span class="built_in">vector</span>&lt;<span class="keyword">uint64_t</span>&gt; block_total;               </span><br><span class="line"><span class="comment">///&lt; sum of block_all</span></span><br><span class="line"><span class="number">255</span>  <span class="built_in">vector</span>&lt;Allocator*&gt; alloc;                   </span><br><span class="line"><span class="comment">///&lt; allocators for bdevs     // 介质空闲空间的管理，已分配的空间落盘时会写入元数据</span></span><br></pre></td></tr></table></figure>
+<h2 id="主要流程源码"><a href="#主要流程源码" class="headerlink" title="主要流程源码"></a>主要流程源码</h2><h3 id="写流程"><a href="#写流程" class="headerlink" title="写流程"></a>写流程</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line">bluefs::open_for_write</span><br><span class="line">    bluefs 只支持一层目录</span><br><span class="line">    dir_map 描述所有目录</span><br><span class="line">    file_map 描述所有文件</span><br><span class="line">    dir-&gt;file_map 描述目录下文件</span><br><span class="line">    File  fnode.ino file_map索引</span><br><span class="line">          fnode.mtime</span><br><span class="line">          fnode.prefer_bdev 优先的介质</span><br><span class="line">          fnode.extents 空间地址</span><br><span class="line">    bluefs_transaction_t log_t 元数据日志，还未写入的</span><br><span class="line">    PerfCounters logger只是计数器，用于操作统计</span><br><span class="line">    BlueFS::FileWriter *BlueFS::_create_writer(FileRef f)</span><br><span class="line">        FileWriter::iocv 通过file创建，为每一个介质，创建IOContext</span><br><span class="line">bluefs::fsync</span><br><span class="line">    =&gt;_flush</span><br><span class="line">        检测数据长度是否满足bluefs_min_flush_size</span><br><span class="line">        =&gt;_flush_range(h, offset, length)</span><br><span class="line">            计算偏移量，调用相应io方式，direct还是libaio，如果libaio再submit，记录pending io数量</span><br><span class="line">            将所有的变动元数据写入dirty_files， 编号写入文件dirty_seq</span><br><span class="line">    =&gt;_flush_bdev_safely</span><br><span class="line">        等待所有aio 完成</span><br><span class="line">    =&gt;_flush_and_sync_log(l, old_dirty_seq)</span><br><span class="line">        将dirty_seq编号的元数据落盘</span><br><span class="line">        =&gt;bluefs_transaction_t log_t.op_file_update(log_writer-&gt;file-&gt;fnode);    </span><br><span class="line">                                                   // 将多有的文件变动写入日志</span><br><span class="line">        =&gt;FileWriter* log_writer-&gt;append(bl);      // 日志编码成buffer， 记入log_write</span><br><span class="line">        =&gt;_flush(log_writer, true);                // 将内容写入磁盘</span><br><span class="line">        =&gt;_flush_bdev_safely(log_writer);          // 确保数据落盘</span><br><span class="line">        更新统计数据</span><br><span class="line"><span class="meta">#</span>## 初始化流程</span><br><span class="line"></span><br><span class="line">BlueFS::add_block_device        // 记录使用哪个文件（也可以指定块设备）</span><br><span class="line">    BlockDevice *b = BlockDevice::create</span><br><span class="line">        new KernelDevice</span><br><span class="line">    b.open</span><br><span class="line"></span><br><span class="line">BlueFS::fs.add_block_extent    // 划分设备的使用空间</span><br><span class="line">    block_all[id].insert(offset, length)</span><br><span class="line">    block_total[id] += length;</span><br><span class="line">    bluefs_transaction_t log_t.op_alloc_add(id, offset, length);  // 操作日志</span><br><span class="line">    int r = _flush_and_sync_log(l);</span><br><span class="line">    alloc[id]-&gt;init_add_free(offset, length);</span><br><span class="line">        </span><br><span class="line">BlueFS::mkfs    </span><br><span class="line">    _flush_and_sync_log</span><br><span class="line">        _pad_bl                // 对齐super.block_size，补0</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/ceph/" rel="tag"># ceph</a>
+          
+            <a href="/tags/bluestore/" rel="tag"># bluestore</a>
+          
+            <a href="/tags/bluefs/" rel="tag"># bluefs</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/08/11/build_blog_with_hexo/" rel="next" title="基于hexo+github搭建个人blog">
+                <i class="fa fa-chevron-left"></i> 基于hexo+github搭建个人blog
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/09/23/stupidallocator_analy/" rel="prev" title="ceph源码分析 - bluestore - StupidAllocator">
+                ceph源码分析 - bluestore - StupidAllocator <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+  
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">simon</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">14</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">15</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          <div class="links-of-author motion-element">
+            
+              
+                <span class="links-of-author-item">
+                  <a href="http://blog.csdn.net/for_tech" target="_blank" title="csdn">
+                    
+                      <i class="fa fa-fw fa-csdn"></i>csdn</a>
+                </span>
+              
+            
+          </div>
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#bluefs-简介"><span class="nav-number">1.</span> <span class="nav-text">bluefs 简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#bluefs-结构"><span class="nav-number">2.</span> <span class="nav-text">bluefs 结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#主要接口及读写流程"><span class="nav-number">3.</span> <span class="nav-text">主要接口及读写流程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#主要数据结构"><span class="nav-number">4.</span> <span class="nav-text">主要数据结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#主要流程源码"><span class="nav-number">5.</span> <span class="nav-text">主要流程源码</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#写流程"><span class="nav-number">5.1.</span> <span class="nav-text">写流程</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2018</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">simon</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Muse</a> v5.1.3</div>
+
+
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+  
+    <span class="site-uv">
+      <i class="fa fa-user"></i>
+      <span class="busuanzi-value" id="busuanzi_value_site_uv"></span>
+      
+    </span>
+  
+
+  
+    <span class="site-pv">
+      <i class="fa fa-eye"></i>
+      <span class="busuanzi-value" id="busuanzi_value_site_pv"></span>
+      
+    </span>
+  
+</div>
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.3"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.3"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.3"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.3"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.3"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+  
+  
+  <link rel="stylesheet" href="/lib/algolia-instant-search/instantsearch.min.css">
+
+  
+  
+  <script src="/lib/algolia-instant-search/instantsearch.min.js"></script>
+  
+
+  <script src="/js/src/algolia-search.js?v=5.1.3"></script>
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
