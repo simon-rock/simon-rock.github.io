@@ -68,7 +68,7 @@
 
 
 
-  <meta name="keywords" content="ceph,osd," />
+  <meta name="keywords" content="ceph,quota," />
 
 
 
@@ -79,18 +79,18 @@
 
 
 
-<meta name="description" content="ceph 读写流程中的锁读写流程的锁主要分两种 pg lock 和对象锁pg lock                                  主要维护pg的一致性， 所以恢复，写入等操作会加锁 ，通过控制journal这一层来控制一致性（入队，出对要加锁控制版本的变化）ondisk_read_lock / ondisk_write_lock     用来控制同一对象的读写关系，互斥同一">
-<meta name="keywords" content="ceph,osd">
+<meta name="description" content="ceph pool quota配额设置ceph可以通过设置pool来限制存储池的使用，通过对象数量和对象总空间两个方面 设置为0时代表无限制 这个限制是在pool层面限制的，可能对业务层带来额外其他的影响，这一点需要注意 集群当前状态1234567891011121314151617181920&amp;gt; ceph -s  cluster:    id:     aeb26bd0-180b-41cb">
+<meta name="keywords" content="ceph,quota">
 <meta property="og:type" content="article">
-<meta property="og:title" content="ceph源码分析 - ceph 读写流程中的锁 - object lock">
-<meta property="og:url" content="http://yoursite.com/2017/11/05/ceph_lock_object/index.html">
+<meta property="og:title" content="ceph - pool quota设置">
+<meta property="og:url" content="http://yoursite.com/2018/07/21/ceph_pool_quota/index.html">
 <meta property="og:site_name" content="Simon G">
-<meta property="og:description" content="ceph 读写流程中的锁读写流程的锁主要分两种 pg lock 和对象锁pg lock                                  主要维护pg的一致性， 所以恢复，写入等操作会加锁 ，通过控制journal这一层来控制一致性（入队，出对要加锁控制版本的变化）ondisk_read_lock / ondisk_write_lock     用来控制同一对象的读写关系，互斥同一">
+<meta property="og:description" content="ceph pool quota配额设置ceph可以通过设置pool来限制存储池的使用，通过对象数量和对象总空间两个方面 设置为0时代表无限制 这个限制是在pool层面限制的，可能对业务层带来额外其他的影响，这一点需要注意 集群当前状态1234567891011121314151617181920&amp;gt; ceph -s  cluster:    id:     aeb26bd0-180b-41cb">
 <meta property="og:locale" content="en">
-<meta property="og:updated_time" content="2018-07-15T03:50:33.000Z">
+<meta property="og:updated_time" content="2018-07-29T09:48:27.000Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="ceph源码分析 - ceph 读写流程中的锁 - object lock">
-<meta name="twitter:description" content="ceph 读写流程中的锁读写流程的锁主要分两种 pg lock 和对象锁pg lock                                  主要维护pg的一致性， 所以恢复，写入等操作会加锁 ，通过控制journal这一层来控制一致性（入队，出对要加锁控制版本的变化）ondisk_read_lock / ondisk_write_lock     用来控制同一对象的读写关系，互斥同一">
+<meta name="twitter:title" content="ceph - pool quota设置">
+<meta name="twitter:description" content="ceph pool quota配额设置ceph可以通过设置pool来限制存储池的使用，通过对象数量和对象总空间两个方面 设置为0时代表无限制 这个限制是在pool层面限制的，可能对业务层带来额外其他的影响，这一点需要注意 集群当前状态1234567891011121314151617181920&amp;gt; ceph -s  cluster:    id:     aeb26bd0-180b-41cb">
 
 
 
@@ -120,13 +120,13 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2017/11/05/ceph_lock_object/"/>
+  <link rel="canonical" href="http://yoursite.com/2018/07/21/ceph_pool_quota/"/>
 
 
 
 
 
-  <title>ceph源码分析 - ceph 读写流程中的锁 - object lock | Simon G</title>
+  <title>ceph - pool quota设置 | Simon G</title>
   
 
 
@@ -291,7 +291,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/11/05/ceph_lock_object/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/07/21/ceph_pool_quota/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="simon">
@@ -308,7 +308,7 @@
 
         
         
-          <h1 class="post-title" itemprop="name headline">ceph源码分析 - ceph 读写流程中的锁 - object lock</h1>
+          <h1 class="post-title" itemprop="name headline">ceph - pool quota设置</h1>
         
 
         <div class="post-meta">
@@ -320,8 +320,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-11-05T20:15:00+08:00">
-                2017-11-05
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-07-21T20:00:00+08:00">
+                2018-07-21
               </time>
             
 
@@ -385,31 +385,15 @@
       
 
       
-        <h2 id="ceph-读写流程中的锁"><a href="#ceph-读写流程中的锁" class="headerlink" title="ceph 读写流程中的锁"></a>ceph 读写流程中的锁</h2><p>读写流程的锁主要分两种 pg lock 和对象锁<br>pg lock                                  主要维护pg的一致性， 所以恢复，写入等操作会加锁 ，通过控制journal这一层来控制一致性（入队，出对要加锁控制版本的变化）<br>ondisk_read_lock / ondisk_write_lock     用来控制同一对象的读写关系，互斥同一对象的读写, 可以参见–(yu) code rgw 11 其中ObjectContextRef用来描述一个对象，操作时会先获取这个对象的锁</p>
-<h2 id="对象锁的管理"><a href="#对象锁的管理" class="headerlink" title="对象锁的管理"></a>对象锁的管理</h2><p>ObcLockManager 主要是管理多个对象及其锁的状态，在运行中，对象锁的状态可以在其中查询到， 其中的描述对象的类是ObjectContext， 全局使用ObjectContextRef 这个智能指针封装版本共享</p>
-<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">bool</span> ObcLockManager::get_rw_locks(</span><br><span class="line">    ObjectContext::RWState::State type,         =&gt; param ctx-&gt;lock_type</span><br><span class="line">    <span class="keyword">const</span> <span class="keyword">hobject_t</span> &amp;hoid,                      =&gt; ctx-&gt;snapset_obc-&gt;obs.oi.soid</span><br><span class="line">    ObjectContextRef obc,                       =&gt; ctx-&gt;snapset_obc</span><br><span class="line">    OpRequestRef op)                            =&gt; ctx-&gt;op</span><br><span class="line">    </span><br><span class="line">调用</span><br><span class="line"><span class="keyword">if</span> (obc-&gt;get_lock_type(op, type))</span><br><span class="line">    <span class="comment">// 成功</span></span><br><span class="line"><span class="keyword">else</span></span><br><span class="line">    <span class="comment">// 失败</span></span><br></pre></td></tr></table></figure>
-<p>传入对象获取对象ObjectContext 的引用ObjectContextRef</p>
-<h2 id="给一个对象加锁"><a href="#给一个对象加锁" class="headerlink" title="给一个对象加锁"></a>给一个对象加锁</h2><p>锁类型分为3累既读锁，写锁和读写锁，分别调用锁对象RWState相应方法</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">ObjectContext::get_lock_type(OpRequestRef op, RWState::State type) // 获取该操作的响应的锁</span><br><span class="line">                =&gt; get_write(op);   -&gt; (RWState)rwstate.get_write(op, false);</span><br><span class="line">                =&gt; get_read(op);    -&gt; (RWState)rwstate.get_read(op);</span><br><span class="line">                =&gt; get_excl(op);    -&gt; (RWState)rwstate.get_excl(op);</span><br></pre></td></tr></table></figure>
-<h2 id="对象的锁处理"><a href="#对象的锁处理" class="headerlink" title="对象的锁处理"></a>对象的锁处理</h2><p>ObjectContext::RWState（osd_types.h::3482）</p>
-<p>是一种特殊的锁，基本机制是</p>
-<ul>
-<li><p>可以多读， 只会增加count</p>
-</li>
-<li><p>可以多写， 底层的journal 保证的多写的原子性， 同理只会增加count</p>
-</li>
-<li>每次一加锁失败会增加waiters， 提示需要释放当前锁，避免其他需要处理的请求等待过长时间</li>
-</ul>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">bool get_excl(OpRequestRef op) &#123;</span><br><span class="line">    if (get_excl_lock()) &#123;</span><br><span class="line">        return true;</span><br><span class="line">    &#125; // else</span><br><span class="line">    if (op)</span><br><span class="line">        waiters.push_back(op);  // 插入操作到waiter中</span><br><span class="line">    return false;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<ul>
-<li>相应的当获取锁时会查看是否有waiters， 其他处理等待过长时间</li>
-</ul>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">3525    -bool get_read_lock() &#123;</span><br><span class="line">3526      // don&apos;t starve anybody!</span><br><span class="line">3527      if (!waiters.empty()) &#123;         // 如果有waiter，则加同类型锁会失败</span><br><span class="line">3528        return false;</span><br><span class="line">3529      &#125;</span><br><span class="line">...</span><br><span class="line">3557      if (!greedy) &#123;</span><br><span class="line">3558        // don&apos;t starve anybody!</span><br><span class="line">3559        if (!waiters.empty() ||       // 同理</span><br><span class="line">3560            recovery_read_marker) &#123;</span><br><span class="line">3561          return false;</span><br><span class="line">3562        &#125;</span><br><span class="line">3563      &#125;</span><br></pre></td></tr></table></figure>
-<ul>
-<li>另一种类型的锁比较特殊，读写权限的锁，每次互斥， 操作索引是这种锁，所以导致么个请求加锁互斥</li>
-</ul>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">3581    -bool get_excl_lock() &#123;</span><br><span class="line">3582      switch (state) &#123;</span><br><span class="line">3583      case RWNONE:</span><br><span class="line">3584        assert(count == 0);</span><br><span class="line">3585        state = RWEXCL;</span><br><span class="line">3586        count = 1;</span><br><span class="line">3587        return true;</span><br><span class="line">3588      case RWWRITE:</span><br><span class="line">3589        return false;</span><br><span class="line">3590      case RWREAD:</span><br><span class="line">3591        return false;</span><br><span class="line">3592      case RWEXCL:</span><br><span class="line">3593        return false;</span><br><span class="line">3594      default:</span><br><span class="line">3595        assert(0 == &quot;unhandled case&quot;);</span><br><span class="line">3596        return false;</span><br><span class="line">3597      &#125;</span><br><span class="line">3598    &#125;</span><br></pre></td></tr></table></figure>
-<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>ceph 的对象锁保证了对象操作的一致性，最大限度的提高读写的并发，多读，多写不互斥，并且考虑了操作的即使性，不过对于需要读写锁的操作，ceph整体操作流程较长的缺点就会放大，同时对于加锁失败的操作ceph的处理会放回队列等待下次调度，着进一步加大这类操作的处理时间</p>
+        <h2 id="ceph-pool-quota配额设置"><a href="#ceph-pool-quota配额设置" class="headerlink" title="ceph pool quota配额设置"></a>ceph pool quota配额设置</h2><p>ceph可以通过设置pool来限制存储池的使用，通过对象数量和对象总空间两个方面</p>
+<p>设置为0时代表无限制</p>
+<p>这个限制是在pool层面限制的，可能对业务层带来额外其他的影响，这一点需要注意</p>
+<h3 id="集群当前状态"><a href="#集群当前状态" class="headerlink" title="集群当前状态"></a>集群当前状态</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&gt;</span><span class="bash"> ceph -s</span></span><br><span class="line">  cluster:</span><br><span class="line">    id:     aeb26bd0-180b-41cb-bce9-0a8fdc248dcb</span><br><span class="line">    health: HEALTH_WARN</span><br><span class="line">            application not enabled on 1 pool(s)</span><br><span class="line"> </span><br><span class="line">  services:</span><br><span class="line">    mon: 1 daemons, quorum cephnode3</span><br><span class="line">    mgr: cephnode3(active)</span><br><span class="line">    mds: cfs-1/1/1 up  &#123;0=cn3-standby=up:active&#125;, 1 up:standby-replay</span><br><span class="line">    osd: 10 osds: 10 up, 10 in</span><br><span class="line"> </span><br><span class="line">  data:</span><br><span class="line">    pools:   3 pools, 950 pgs</span><br><span class="line">    objects: 244k objects, 1016 MB</span><br><span class="line">    usage:   25519 MB used, 4446 GB / 4470 GB avail</span><br><span class="line">    pgs:     950 active+clean</span><br><span class="line"> </span><br><span class="line">  io:</span><br><span class="line">    client:   852 B/s rd, 1 op/s rd, 0 op/s wr</span><br></pre></td></tr></table></figure>
+<h3 id="查看配额"><a href="#查看配额" class="headerlink" title="查看配额"></a>查看配额</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&gt;</span><span class="bash"> ceph osd pool get-quota rbd</span></span><br><span class="line">quotas for pool 'rbd':</span><br><span class="line">  max objects: N/A</span><br><span class="line">  max bytes  : N/A</span><br></pre></td></tr></table></figure>
+<h3 id="设置配额"><a href="#设置配额" class="headerlink" title="设置配额"></a>设置配额</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">&gt; ceph osd pool set-quota rbd max_objects 10</span><br><span class="line">set-quota max_objects = 10 for pool rbd</span><br></pre></td></tr></table></figure>
+<h3 id="验证"><a href="#验证" class="headerlink" title="验证"></a>验证</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&gt;</span><span class="bash"> ceph osd pool <span class="built_in">set</span>-quota rbd max_objects 2</span></span><br><span class="line">set-quota max_objects = 2 for pool rbd</span><br><span class="line"><span class="meta">&gt;</span><span class="bash"> ceph osd pool get-quota rbd</span></span><br><span class="line">quotas for pool 'rbd':</span><br><span class="line">  max objects: 2 objects</span><br><span class="line">  max bytes  : N/A</span><br><span class="line"></span><br><span class="line"><span class="meta">&gt;</span><span class="bash"> ceph -s</span></span><br><span class="line">  cluster:</span><br><span class="line">    id:     aeb26bd0-180b-41cb-bce9-0a8fdc248dcb</span><br><span class="line">    health: HEALTH_WARN</span><br><span class="line">            1 pool(s) full</span><br><span class="line">            application not enabled on 1 pool(s)</span><br><span class="line"> </span><br><span class="line">  services:</span><br><span class="line">    mon: 1 daemons, quorum cephnode3</span><br><span class="line">    mgr: cephnode3(active)</span><br><span class="line">    mds: cfs-1/1/1 up  &#123;0=cn3-standby=up:active&#125;, 1 up:standby-replay</span><br><span class="line">    osd: 10 osds: 10 up, 10 in</span><br><span class="line"> </span><br><span class="line">  data:</span><br><span class="line">    pools:   3 pools, 950 pgs</span><br><span class="line">    objects: 244k objects, 1016 MB</span><br><span class="line">    usage:   25520 MB used, 4446 GB / 4470 GB avail</span><br><span class="line">    pgs:     950 active+clean</span><br><span class="line"> </span><br><span class="line">  io:</span><br><span class="line">    client:   852 B/s rd, 1 op/s rd, 0 op/s wr</span><br><span class="line"></span><br><span class="line"><span class="meta">&gt;</span><span class="bash"> rados put 1 1 -p rbd</span></span><br><span class="line">2018-07-27 16:55:31.957996 7fe7eb744e40  0 client.24594.objecter  FULL, paused modify 0x7fe7ed04e080 tid 0</span><br></pre></td></tr></table></figure>
+<h3 id="取消配额"><a href="#取消配额" class="headerlink" title="取消配额"></a>取消配额</h3><p>取消配额后错误消失</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">ceph osd pool set-quota rbd max_objects 0</span><br><span class="line">set-quota max_objects = 0 for pool rbd</span><br><span class="line">[root@cephnode3 ~]# ceph -s</span><br><span class="line">  cluster:</span><br><span class="line">    id:     aeb26bd0-180b-41cb-bce9-0a8fdc248dcb</span><br><span class="line">    health: HEALTH_WARN</span><br><span class="line">            application not enabled on 1 pool(s)</span><br><span class="line"> </span><br><span class="line">  services:</span><br><span class="line">    mon: 1 daemons, quorum cephnode3</span><br><span class="line">    mgr: cephnode3(active)</span><br><span class="line">    mds: cfs-1/1/1 up  &#123;0=cn3-standby=up:active&#125;, 1 up:standby-replay</span><br><span class="line">    osd: 10 osds: 10 up, 10 in</span><br><span class="line"> </span><br><span class="line">  data:</span><br><span class="line">    pools:   3 pools, 950 pgs</span><br><span class="line">    objects: 244k objects, 1016 MB</span><br><span class="line">    usage:   25521 MB used, 4446 GB / 4470 GB avail</span><br><span class="line">    pgs:     950 active+clean</span><br><span class="line"> </span><br><span class="line">  io:</span><br><span class="line">    client:   639 B/s rd, 1 op/s rd, 0 op/s wr</span><br></pre></td></tr></table></figure>
 
       
     </div>
@@ -429,7 +413,7 @@
           
             <a href="/tags/ceph/" rel="tag"># ceph</a>
           
-            <a href="/tags/osd/" rel="tag"># osd</a>
+            <a href="/tags/quota/" rel="tag"># quota</a>
           
         </div>
       
@@ -442,8 +426,8 @@
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
             
-              <a href="/2017/10/21/kernel_loadavg/" rel="next" title="kernel load的计算">
-                <i class="fa fa-chevron-left"></i> kernel load的计算
+              <a href="/2018/06/25/kubernetes_cephfs_pv/" rel="next" title="kubernetes - cephfs创建kubernetes PV">
+                <i class="fa fa-chevron-left"></i> kubernetes - cephfs创建kubernetes PV
               </a>
             
           </div>
@@ -451,10 +435,6 @@
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
-            
-              <a href="/2017/11/13/ceph_exclusive_lock/" rel="prev" title="ceph源码分析 - ceph exclusive lock实现">
-                ceph源码分析 - ceph exclusive lock实现 <i class="fa fa-chevron-right"></i>
-              </a>
             
           </div>
         </div>
@@ -594,7 +574,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#ceph-读写流程中的锁"><span class="nav-number">1.</span> <span class="nav-text">ceph 读写流程中的锁</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#对象锁的管理"><span class="nav-number">2.</span> <span class="nav-text">对象锁的管理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#给一个对象加锁"><span class="nav-number">3.</span> <span class="nav-text">给一个对象加锁</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#对象的锁处理"><span class="nav-number">4.</span> <span class="nav-text">对象的锁处理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#总结"><span class="nav-number">5.</span> <span class="nav-text">总结</span></a></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#ceph-pool-quota配额设置"><span class="nav-number">1.</span> <span class="nav-text">ceph pool quota配额设置</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#集群当前状态"><span class="nav-number">1.1.</span> <span class="nav-text">集群当前状态</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#查看配额"><span class="nav-number">1.2.</span> <span class="nav-text">查看配额</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#设置配额"><span class="nav-number">1.3.</span> <span class="nav-text">设置配额</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#验证"><span class="nav-number">1.4.</span> <span class="nav-text">验证</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#取消配额"><span class="nav-number">1.5.</span> <span class="nav-text">取消配额</span></a></li></ol></li></ol></div>
             
 
           </div>
